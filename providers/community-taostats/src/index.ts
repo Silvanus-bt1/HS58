@@ -362,6 +362,23 @@ app.get('/v1/admin/vouchers', (_req, res) => {
   });
 });
 
+app.post('/v1/close-channel', async (req, res) => {
+  try {
+    const { channelId } = req.body;
+    if (!channelId) return res.status(400).json({ error: 'channelId required' });
+
+    const result = await drainService.signCloseAuthorization(channelId);
+    res.json({
+      channelId,
+      finalAmount: result.finalAmount.toString(),
+      signature: result.signature,
+    });
+  } catch (error: any) {
+    console.error('[close-channel] Error:', error?.message || error);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 app.get('/health', async (_req, res) => {
   const healthy = await taostatsService.healthCheck();
   res.json({

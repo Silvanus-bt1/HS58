@@ -4,7 +4,7 @@
 
 // Contract Addresses
 export const DRAIN_ADDRESSES: Record<number, string> = {
-  137: '0x1C1918C99b6DcE977392E4131C91654d8aB71e64',
+  137: '0x0C2B3aA1e80629D572b1f200e6DF3586B3946A8A',
   80002: '0x61f1C1E04d6Da1C92D0aF1a3d7Dc0fEFc8794d7C',
 };
 
@@ -79,6 +79,39 @@ export const DRAIN_CHANNEL_ABI = [
       { indexed: false, name: 'amount', type: 'uint256' },
     ],
     name: 'ChannelClaimed',
+    type: 'event',
+  },
+  // === V2 Functions ===
+  {
+    inputs: [
+      { name: 'channelId', type: 'bytes32' },
+      { name: 'finalAmount', type: 'uint256' },
+      { name: 'providerSignature', type: 'bytes' },
+    ],
+    name: 'cooperativeClose',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  // === V2 Events ===
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'channelId', type: 'bytes32' },
+      { indexed: true, name: 'consumer', type: 'address' },
+      { indexed: false, name: 'refund', type: 'uint256' },
+    ],
+    name: 'ChannelClosed',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'channelId', type: 'bytes32' },
+      { indexed: true, name: 'recipient', type: 'address' },
+      { indexed: false, name: 'amount', type: 'uint256' },
+    ],
+    name: 'FeePaid',
     type: 'event',
   },
 ] as const;

@@ -396,6 +396,34 @@ export class DrainService {
     }
   }
 
+  /**
+   * Sign a close authorization for cooperative channel close.
+   * Returns the finalAmount (highest voucher or 0) and provider signature.
+   */
+  async signCloseAuthorization(channelId: Hash): Promise<{ finalAmount: bigint; signature: Hex }> {
+    const highest = this.storage.getHighestVoucherPerChannel().get(channelId);
+    const finalAmount = highest ? highest.amount : 0n;
+
+    const signature = await this.walletClient.signTypedData({
+      domain: {
+        name: EIP712_DOMAIN.name,
+        version: EIP712_DOMAIN.version,
+        chainId: this.config.chainId,
+        verifyingContract: this.contractAddress,
+      },
+      types: {
+        CloseAuthorization: [
+          { name: 'channelId', type: 'bytes32' },
+          { name: 'finalAmount', type: 'uint256' },
+        ],
+      },
+      primaryType: 'CloseAuthorization',
+      message: { channelId, finalAmount },
+    });
+
+    return { finalAmount, signature };
+  }
+
   stopAutoClaim(): void {
     if (this.autoClaimInterval) {
       clearInterval(this.autoClaimInterval);

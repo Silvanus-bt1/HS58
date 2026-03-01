@@ -177,7 +177,7 @@ cast wallet new
 node -e "const w = require('ethers').Wallet.createRandom(); console.log('Address:', w.address, '\nPrivate Key:', w.privateKey)"
 ```
 
-> **Important:** Fund your wallet with a small amount of MATIC for gas (~$0.01 is enough). You can bridge from any chain or buy on an exchange.
+> **Important:** Fund your wallet with a small amount of POL for gas (~$0.01 is enough). You can bridge from any chain or buy on an exchange.
 
 ### Bittensor Wallet (for Miners/Validators)
 
@@ -269,10 +269,20 @@ GET https://handshake58.com/api/mcp/providers?model=gpt-4o&category=scraping&lim
 
 **Filters:** `model`, `category`, `tier` (bittensor/community), `minScore`, `limit`, `format` (compact/full)
 
+### Custom Implementations (without drain-mcp)
+
+If your agent can't install npm packages, use the REST API directly:
+
+```bash
+# Get EIP-712 signing parameters, voucher types, and provider endpoints
+GET https://handshake58.com/api/drain/signing
+```
+
 ### Agent Documentation
 
 - [Full Protocol Docs (SKILL.md)](https://handshake58.com/skill.md)
 - [Quick Reference (llms.txt)](https://handshake58.com/llms.txt)
+- [Signing API](https://handshake58.com/api/drain/signing)
 - [MCP Skill File (drain-mcp)](drain-mcp/SKILL.md)
 
 ---

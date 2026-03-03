@@ -30,7 +30,7 @@ export function loadConfig(): ProviderConfig {
   return {
     replicateApiToken: requireEnv('REPLICATE_API_TOKEN'),
     markupPercent: parseFloat(optionalEnv('MARKUP_PERCENT', '50')),
-    syncIntervalHours: parseFloat(optionalEnv('SYNC_INTERVAL_HOURS', '6')),
+    syncIntervalHours: parseFloat(optionalEnv('SYNC_INTERVAL_HOURS', '24')),
     maxPredictionTimeoutMs: parseInt(optionalEnv('MAX_PREDICTION_TIMEOUT_MS', '600000')),
     predictionPollIntervalMs: parseInt(optionalEnv('PREDICTION_POLL_INTERVAL_MS', '3000')),
     syncCollections,

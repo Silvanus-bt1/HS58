@@ -73,7 +73,7 @@ curl -X POST http://localhost:3000/v1/chat/completions \
 | `PROVIDER_PRIVATE_KEY` | Yes | — | Polygon wallet private key |
 | `REPLICATE_API_TOKEN` | Yes | — | Replicate API token |
 | `MARKUP_PERCENT` | No | `50` | Markup on tier prices |
-| `SYNC_INTERVAL_HOURS` | No | `6` | Hours between collection re-syncs |
+| `SYNC_INTERVAL_HOURS` | No | `24` | Hours between collection re-syncs |
 | `SYNC_COLLECTIONS` | No | 13 defaults | Comma-separated collection slugs |
 | `MAX_PREDICTION_TIMEOUT_MS` | No | `600000` | Max wait for predictions (10min) |
 | `POLYGON_RPC_URL` | No | Public RPC | Reliable RPC for claiming |
@@ -103,7 +103,7 @@ The model registry automatically syncs from these Replicate collections on start
 
 `official`, `text-to-image`, `image-to-video`, `text-to-video`, `language-models`, `speech-to-text`, `text-to-speech`, `super-resolution`, `image-editing`, `vision-models`, `3d-models`, `wan-video`, `flux`
 
-New models added by Replicate to these collections appear automatically at the next sync.
+New models added by Replicate to these collections appear automatically at the next daily sync.
 
 ## Deploy
 

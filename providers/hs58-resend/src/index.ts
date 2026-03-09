@@ -22,7 +22,42 @@ const resend = new Resend(config.resendApiKey);
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '256kb' }));
+
+// --- Rate Limiter (per channel, sliding window) ---
+const rateLimitMap = new Map<string, number[]>();
+
+function checkRateLimit(channelId: string): boolean {
+  const now = Date.now();
+  const windowMs = 60_000;
+  const hits = rateLimitMap.get(channelId) ?? [];
+  const recent = hits.filter(t => now - t < windowMs);
+  if (recent.length >= config.rateLimitPerMinute) return false;
+  recent.push(now);
+  rateLimitMap.set(channelId, recent);
+  return true;
+}
+
+// Cleanup stale entries every 5 minutes
+setInterval(() => {
+  const cutoff = Date.now() - 120_000;
+  for (const [key, hits] of rateLimitMap) {
+    const active = hits.filter(t => t > cutoff);
+    if (active.length === 0) rateLimitMap.delete(key);
+    else rateLimitMap.set(key, active);
+  }
+}, 5 * 60_000);
+
+// --- Admin Auth Middleware ---
+function requireAdmin(req: express.Request, res: express.Response): boolean {
+  if (!config.adminPassword) return true;
+  const auth = req.headers.authorization;
+  if (auth !== `Bearer ${config.adminPassword}`) {
+    res.status(401).json({ error: 'Unauthorized. Set Authorization: Bearer <ADMIN_PASSWORD>' });
+    return false;
+  }
+  return true;
+}
 
 function validateEmailParams(params: any): { valid: boolean; error?: string; parsed?: SendEmailParams } {
   if (!params.to) {
@@ -36,10 +71,24 @@ function validateEmailParams(params: any): { valid: boolean; error?: string; par
   }
 
   const to = Array.isArray(params.to) ? params.to : [params.to];
-  for (const addr of to) {
+  const cc = params.cc ? (Array.isArray(params.cc) ? params.cc : [params.cc]) : [];
+  const bcc = params.bcc ? (Array.isArray(params.bcc) ? params.bcc : [params.bcc]) : [];
+  const totalRecipients = to.length + cc.length + bcc.length;
+
+  if (totalRecipients > config.maxRecipientsPerEmail) {
+    return { valid: false, error: `Too many recipients (${totalRecipients}). Max: ${config.maxRecipientsPerEmail}` };
+  }
+
+  for (const addr of [...to, ...cc, ...bcc]) {
     if (typeof addr !== 'string' || !addr.includes('@')) {
       return { valid: false, error: `Invalid email address: ${addr}` };
     }
+  }
+
+  // Body size check
+  const bodySize = (params.html?.length ?? 0) + (params.text?.length ?? 0);
+  if (bodySize > config.maxBodySizeBytes) {
+    return { valid: false, error: `Email body too large (${bodySize} bytes). Max: ${config.maxBodySizeBytes}` };
   }
 
   const from = params.from || config.defaultFrom;
@@ -59,8 +108,8 @@ function validateEmailParams(params: any): { valid: boolean; error?: string; par
       subject: params.subject,
       html: params.html,
       text: params.text,
-      cc: params.cc,
-      bcc: params.bcc,
+      cc: cc.length > 0 ? cc : undefined,
+      bcc: bcc.length > 0 ? bcc : undefined,
       reply_to: params.reply_to,
       tags: params.tags,
     },
@@ -187,6 +236,14 @@ app.post('/v1/emails/send', async (req, res) => {
     return;
   }
 
+  // Rate limit check
+  if (!checkRateLimit(voucher.channelId)) {
+    res.status(429).json({
+      error: { message: `Rate limit exceeded. Max ${config.rateLimitPerMinute} emails/min per channel.` },
+    });
+    return;
+  }
+
   const cost = config.pricePerEmail;
 
   const voucherValidation = await drainService.validateVoucher(voucher, cost);
@@ -277,6 +334,14 @@ app.post('/v1/chat/completions', async (req, res) => {
   if (!modelId || !isModelSupported(modelId)) {
     res.status(400).json({
       error: { message: `Model "${modelId}" not available. Use: ${getSupportedModels().join(', ')}` },
+    });
+    return;
+  }
+
+  // Rate limit check
+  if (!checkRateLimit(voucher.channelId)) {
+    res.status(429).json({
+      error: { message: `Rate limit exceeded. Max ${config.rateLimitPerMinute} emails/min per channel.` },
     });
     return;
   }
@@ -394,6 +459,7 @@ app.post('/v1/chat/completions', async (req, res) => {
  * POST /v1/admin/claim
  */
 app.post('/v1/admin/claim', async (req, res) => {
+  if (!requireAdmin(req, res)) return;
   try {
     const forceAll = req.body?.forceAll === true;
     const txHashes = await drainService.claimPayments(forceAll);
@@ -406,7 +472,8 @@ app.post('/v1/admin/claim', async (req, res) => {
 /**
  * GET /v1/admin/stats
  */
-app.get('/v1/admin/stats', (_req, res) => {
+app.get('/v1/admin/stats', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   const stats = storage.getStats();
   res.json({
     ...stats,
@@ -419,7 +486,8 @@ app.get('/v1/admin/stats', (_req, res) => {
 /**
  * GET /v1/admin/vouchers
  */
-app.get('/v1/admin/vouchers', (_req, res) => {
+app.get('/v1/admin/vouchers', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   const unclaimed = storage.getUnclaimedVouchers();
   res.json({
     count: unclaimed.length,

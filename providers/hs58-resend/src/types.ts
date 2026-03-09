@@ -14,6 +14,10 @@ export interface ProviderConfig {
   defaultFrom: string;
   allowedDomains: string[];
   pricePerEmail: bigint;
+  maxRecipientsPerEmail: number;
+  maxBodySizeBytes: number;
+  rateLimitPerMinute: number;
+  adminPassword?: string;
   port: number;
   host: string;
   chainId: 137 | 80002;

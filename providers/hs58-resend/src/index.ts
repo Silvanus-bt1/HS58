@@ -169,40 +169,57 @@ app.get('/v1/docs', (_req, res) => {
 
   res.type('text/plain').send(`# HS58-Resend Provider — Agent Instructions
 
-This provider sends transactional emails via the Resend API.
+Send transactional emails via the Resend API, paid with DRAIN micropayments.
 
-## How to use via DRAIN
+## Quick Start
 
-1. Open a payment channel to this provider (drain_open_channel)
-2. Call drain_chat with:
-   - model: "resend/send-email"
-   - messages: ONE user message containing valid JSON = the email parameters
+1. Open a payment channel: drain_open_channel
+2. Send an email: drain_chat with model "resend/send-email"
+3. The user message must be valid JSON containing the email parameters
 
-## Email Parameters (JSON)
+## Email Parameters
 
-{
-  "to": ["recipient@example.com"],
-  "subject": "Your subject",
-  "html": "<p>Email body in HTML</p>",
-  "text": "Plain text fallback (optional if html is provided)",
-  "from": "sender@yourdomain.com (optional, uses default)",
-  "cc": ["cc@example.com"],
-  "bcc": ["bcc@example.com"],
-  "reply_to": "reply@example.com"
-}
+Required fields:
+- "to" (string or array) — recipient address(es)
+- "subject" (string) — email subject line
+- "html" or "text" (string) — email body (at least one required)
 
-## Example
+Optional fields:
+- "from" (string) — sender address (default: ${config.defaultFrom})
+- "cc" (string or array) — carbon copy recipients
+- "bcc" (string or array) — blind carbon copy recipients
+- "reply_to" (string) — reply-to address
+
+## Example Request
 
 model: "resend/send-email"
-messages: [{"role": "user", "content": "{\\"to\\": [\\"user@example.com\\"], \\"subject\\": \\"Hello\\", \\"html\\": \\"<p>Hi!</p>\\"}"}]
+messages: [
+  {
+    "role": "user",
+    "content": {
+      "to": ["user@example.com"],
+      "subject": "Order Confirmation",
+      "html": "<h1>Thank you!</h1><p>Your order has been placed.</p>"
+    }
+  }
+]
+
+Note: The content field must be a JSON string, not a nested object.
+Actual payload: "content": "{\\"to\\": [\\"user@example.com\\"], \\"subject\\": \\"Order Confirmation\\", \\"html\\": \\"<h1>Thank you!</h1>\\"}"
+
+## Limits
+
+- Max ${config.maxRecipientsPerEmail} recipients per email (to + cc + bcc combined)
+- Max ${Math.round(config.maxBodySizeBytes / 1024)} KB email body size
+- Max ${config.rateLimitPerMinute} emails per minute per payment channel
 
 ## Pricing
 
-$${priceStr} USDC per email sent.
+$${priceStr} USDC per email sent (flat rate, regardless of recipients or body size).
 
 ## Alternative: Direct API
 
-POST /v1/emails/send with JSON body (same parameters) and X-DRAIN-Voucher header.
+POST /v1/emails/send — same JSON body (not wrapped in messages), requires X-DRAIN-Voucher header.
 `);
 });
 

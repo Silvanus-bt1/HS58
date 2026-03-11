@@ -43,40 +43,58 @@ app.use(express.json());
 
 /**
  * GET /v1/docs
- * Usage documentation for agents
  */
-app.get('/v1/docs', (req, res) => {
+app.get('/v1/docs', (_req, res) => {
   const models = getSupportedModels();
-  res.type('text/plain').send(`# ${config.providerName}
+  const modelList = getModelList();
+  const topModels = models.slice(0, 8).map(m => {
+    const p = getModelPricing(m);
+    const info = modelList.find(ml => ml.id === m);
+    const name = info?.name ? ` (${info.name})` : '';
+    return p
+      ? `- ${m}${name}: $${formatUnits(p.inputPer1k, 6)} input / $${formatUnits(p.outputPer1k, 6)} output per 1k tokens`
+      : `- ${m}${name}`;
+  }).join('\n');
 
-Standard OpenAI-compatible chat completions API. Payment via DRAIN protocol.
+  res.type('text/plain').send(`# ${config.providerName} — Agent Instructions
 
-## Request Format
+Bittensor-powered LLM inference via the Chutes API. DRAIN payments.
+Supports ${models.length} models with per-token pricing.
 
-POST /v1/chat/completions
-Header: X-DRAIN-Voucher (required)
+## How to use via DRAIN
 
-{
-  "model": "<model-id>",
-  "messages": [{"role": "user", "content": "Your message"}],
-  "stream": false
-}
+1. Open a payment channel to this provider (drain_open_channel)
+2. Call drain_chat with:
+   - model: any model ID from the list below
+   - messages: standard chat messages array
 
-## Available Models (${models.length})
+## Example
 
-${models.join('\n')}
+model: "${models[0] || 'deepseek-ai/DeepSeek-V3-0324'}"
+messages: [{"role": "user", "content": "What is Bittensor and how does it work?"}]
+
+Streaming is supported (stream: true).
+
+## Top Models
+
+${topModels}
+
+Full list: GET /v1/models
+Full pricing: GET /v1/pricing
 
 ## Pricing
 
-GET /v1/pricing for per-model token pricing.
+Per-token pricing in USDC (${(config.markup - 1) * 100}% markup on Chutes base prices).
+Input and output tokens are priced separately.
+Cost = (input_tokens × input_rate + output_tokens × output_rate) / 1000.
+Pricing auto-refreshes from the Chutes API.
 
-## Endpoints
+## Notes
 
-GET  /v1/docs              - This documentation
-GET  /v1/models            - List models
-GET  /v1/pricing            - Token pricing
-POST /v1/chat/completions  - Chat (requires X-DRAIN-Voucher)
-POST /v1/close-channel     - Cooperative close
+- Standard OpenAI chat completions format (messages, max_tokens, temperature, etc.)
+- Streaming supported via stream: true
+- Responses include X-DRAIN-Cost, X-DRAIN-Remaining headers
+- Models run on Bittensor decentralized inference network
 `);
 });
 

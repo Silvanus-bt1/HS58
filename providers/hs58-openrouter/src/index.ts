@@ -45,9 +45,63 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get('/v1/docs', (req, res) => {
+/**
+ * GET /v1/docs
+ */
+app.get('/v1/docs', (_req, res) => {
   const models = getSupportedModels();
-  res.type('text/plain').send(`# ${config.providerName}\n\nStandard OpenAI-compatible chat completions API. Payment via DRAIN protocol.\n\n## Request Format\n\nPOST /v1/chat/completions\nHeader: X-DRAIN-Voucher (required)\n\n{\n  "model": "<model-id>",\n  "messages": [{"role": "user", "content": "Your message"}],\n  "stream": false\n}\n\n## Available Models (${models.length})\n\n${models.join('\\n')}\n\n## Pricing\n\nGET /v1/pricing for per-model token pricing.\n`);
+  const modelList = getModelList();
+  const topModels = models.slice(0, 10).map(m => {
+    const p = getModelPricing(m);
+    const info = modelList.find(ml => ml.id === m);
+    const name = info?.name ? ` (${info.name})` : '';
+    return p
+      ? `- ${m}${name}: $${formatUnits(p.inputPer1k, 6)} input / $${formatUnits(p.outputPer1k, 6)} output per 1k tokens`
+      : `- ${m}${name}`;
+  }).join('\n');
+
+  res.type('text/plain').send(`# ${config.providerName} — Agent Instructions
+
+Meta-provider with ${models.length}+ models from OpenRouter. Includes GPT-4o, Claude, Llama, Gemini, Mistral, and more.
+All accessible via a single DRAIN payment channel.
+
+## How to use via DRAIN
+
+1. Open a payment channel to this provider (drain_open_channel)
+2. Call drain_chat with:
+   - model: any model ID from the list below (OpenRouter format: provider/model-name)
+   - messages: standard chat messages array
+
+## Example
+
+model: "openai/gpt-4o"
+messages: [{"role": "user", "content": "Explain quantum computing in simple terms"}]
+
+Streaming is supported (stream: true).
+
+## Top Models
+
+${topModels}
+
+Full list: GET /v1/models
+Full pricing: GET /v1/pricing
+Filter pricing: GET /v1/pricing?filter=claude
+
+## Pricing
+
+Per-token pricing in USDC (${(config.markup - 1) * 100}% markup on OpenRouter base prices).
+Input and output tokens are priced separately.
+Cost = (input_tokens × input_rate + output_tokens × output_rate) / 1000.
+Pricing auto-refreshes from the OpenRouter API.
+
+## Notes
+
+- Standard OpenAI chat completions format (messages, max_tokens, temperature, etc.)
+- Streaming supported via stream: true
+- Responses include X-DRAIN-Cost, X-DRAIN-Remaining headers
+- Model IDs use OpenRouter format: provider/model-name (e.g. "anthropic/claude-sonnet-4-20250514")
+- One payment channel gives access to all ${models.length}+ models
+`);
 });
 
 /**

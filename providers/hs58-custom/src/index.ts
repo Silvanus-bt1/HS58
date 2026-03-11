@@ -31,9 +31,58 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get('/v1/docs', (req, res) => {
+/**
+ * GET /v1/docs
+ */
+app.get('/v1/docs', (_req, res) => {
   const models = getSupportedModels();
-  res.type('text/plain').send(`# ${config.providerName}\n\nStandard OpenAI-compatible chat completions API. Payment via DRAIN protocol.\n\n## Request Format\n\nPOST /v1/chat/completions\nHeader: X-DRAIN-Voucher (required)\n\n{\n  "model": "<model-id>",\n  "messages": [{"role": "user", "content": "Your message"}],\n  "stream": false\n}\n\n## Available Models (${models.length})\n\n${models.join('\\n')}\n\n## Pricing\n\nGET /v1/pricing for per-model token pricing.\n`);
+  const topModels = models.slice(0, 8).map(m => {
+    const p = getModelPricing(m);
+    return p
+      ? `- ${m}: $${formatUnits(p.inputPer1k, 6)} input / $${formatUnits(p.outputPer1k, 6)} output per 1k tokens`
+      : `- ${m}`;
+  }).join('\n');
+
+  res.type('text/plain').send(`# ${config.providerName} — Agent Instructions
+
+Custom LLM provider wrapping any OpenAI-compatible backend (Ollama, vLLM, Together, Fireworks, LiteLLM, etc.).
+Upstream API: ${config.apiBaseUrl}
+Supports ${models.length} models with per-token pricing via DRAIN payments.
+
+## How to use via DRAIN
+
+1. Open a payment channel to this provider (drain_open_channel)
+2. Call drain_chat with:
+   - model: any model ID from the list below
+   - messages: standard chat messages array
+
+## Example
+
+model: "${models[0] || 'llama3'}"
+messages: [{"role": "user", "content": "Explain quantum computing in simple terms"}]
+
+Streaming is supported (stream: true).
+
+## Available Models
+
+${topModels}
+
+Full list: GET /v1/models
+Full pricing: GET /v1/pricing
+
+## Pricing
+
+Per-token pricing in USDC (${(config.markup - 1) * 100}% markup).
+Input and output tokens are priced separately.
+Cost = (input_tokens × input_rate + output_tokens × output_rate) / 1000.
+
+## Notes
+
+- Standard OpenAI chat completions format (messages, max_tokens, temperature, etc.)
+- Streaming supported via stream: true
+- Responses include X-DRAIN-Cost, X-DRAIN-Remaining headers
+- Model availability depends on the upstream backend configuration
+`);
 });
 
 /**

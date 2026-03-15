@@ -15,6 +15,90 @@ All providers share the same DRAIN payment shell. Only the core logic differs.
 
 Reference providers live in `providers/` in the HS58 repo. Read the closest reference before building.
 
+## How the System Works
+
+Before building, understand the end-to-end architecture. Your provider is one piece of a larger system.
+
+### Architecture
+
+```
+Agent (Cursor, Claude Desktop, Cline, etc.)
+  │
+  ▼
+drain-mcp (local MCP server, npm package)
+  │  - Signs EIP-712 vouchers locally (private key never transmitted)
+  │  - Opens/closes payment channels on Polygon
+  │
+  ├──► Marketplace (handshake58.com)
+  │      - Provider catalog: GET /api/mcp/providers
+  │      - Health checks: periodically probes /v1/pricing + /v1/docs
+  │      - Registration: POST /api/directory/providers
+  │
+  ├──► Your Provider (e.g. Railway)
+  │      - Receives requests with signed vouchers
+  │      - Validates vouchers on-chain
+  │      - Delivers the service
+  │      - Claims USDC later via auto-claim
+  │
+  └──► Polygon Mainnet (Chain 137)
+         - DRAIN Contract: 0x0C2B3aA1e80629D572b1f200e6DF3586B3946A8A
+         - USDC: 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359
+         - 2% protocol fee deducted on provider claim
+```
+
+### How Agents Use Your Provider
+
+Agents interact via drain-mcp tools. Understanding this helps you build the right `/v1/docs` and response format.
+
+| Step | drain-mcp tool | What happens |
+|---|---|---|
+| 1. Discover | `drain_providers` | Agent searches by category/model. Marketplace returns your provider if online + profile complete. |
+| 2. Learn | `drain_provider_info` | Agent reads your `/v1/docs` endpoint to learn how to call you. |
+| 3. Fund | `drain_open_channel` | Agent deposits USDC into a payment channel to your wallet (~$0.02 gas). |
+| 4. Use | `drain_chat` | Agent sends requests with a signed voucher in `X-DRAIN-Voucher` header. You validate, serve, store voucher. |
+| 5. Repeat | `drain_chat` | Multiple requests on the same channel. Each voucher has a higher cumulative amount. |
+| 6. Close | `drain_close_channel` | Agent reclaims unspent USDC after channel expiry. Or `drain_cooperative_close` for instant refund. |
+
+### Channel Lifecycle
+
+1. **Open** -- Agent deposits USDC into the DRAIN smart contract. Gets a `channelId` and expiry timestamp. Cost: ~$0.02 gas.
+2. **Use** -- Each `drain_chat` call signs a voucher locally (no gas). The voucher's `amount` field is cumulative -- it represents the total spent so far, not per-request.
+3. **Claim** -- Your provider's auto-claim system periodically claims USDC from channels approaching expiry. The smart contract releases funds to your wallet minus 2% protocol fee.
+4. **Close** -- After expiry, the agent calls `drain_close_channel` to reclaim any unspent USDC. Funds do NOT auto-return.
+
+### What Happens After You Deploy and Register
+
+1. **Registration** -- Submit via form at handshake58.com/become-provider or `POST /api/directory/providers`
+2. **Connection test** -- Marketplace calls `GET {apiUrl}/v1/pricing` and runs 4 checks:
+   - Reachable (HTTP 200 within 10s)
+   - Valid format (`provider` + `models` fields exist)
+   - Address match (`provider` matches your wallet)
+   - Has models (`models` object is non-empty)
+3. **Status: pending** -- Admin reviews and approves
+4. **Health checks** -- After approval, the marketplace periodically:
+   - Calls `GET /v1/pricing` to sync model pricing
+   - Calls `GET /v1/docs` and checks length >= 100 chars
+   - Probes `POST /v1/chat/completions` for HTTPS availability
+   - Updates `isOnline` and `inferenceOnline` status
+5. **Visibility** -- Your provider appears to agents ONLY when:
+   - `isOnline = true` (pricing endpoint responsive)
+   - `inferenceOnline = true` (docs endpoint returns 100+ chars)
+   - Profile completeness = 100% (description, logoUrl, website, contactEmail all set)
+
+If any of these fail, agents will not see your provider in `drain_providers` results.
+
+### Key URLs
+
+| Resource | URL |
+|---|---|
+| Marketplace | https://handshake58.com |
+| Provider Directory | https://handshake58.com/directory |
+| Become a Provider | https://handshake58.com/become-provider |
+| Provider API (agents) | https://handshake58.com/api/mcp/providers |
+| drain-mcp (npm) | https://www.npmjs.com/package/drain-mcp |
+| Provider Templates | https://github.com/Handshake58/HS58/tree/main/providers |
+| Integration Guide | https://github.com/Handshake58/HS58/blob/main/.cursor/skills/provider-builder/SKILL.md |
+
 ## Phase 1: Discovery / Design
 
 ### Typ A+B (existing API)

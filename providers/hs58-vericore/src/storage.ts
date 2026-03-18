@@ -111,11 +111,11 @@ export class VoucherStorage {
   }
 
   getChannel(channelId: Hash): ChannelState | null {
-    return this.data.channels[channelId] ?? null;
+    return this.data.channels[channelId.toLowerCase()] ?? null;
   }
 
   updateChannel(channelId: Hash, state: ChannelState): void {
-    this.data.channels[channelId] = state;
+    this.data.channels[channelId.toLowerCase()] = state;
     this.save();
   }
 
@@ -140,7 +140,7 @@ export class VoucherStorage {
 
   markClaimed(channelId: Hash, txHash: Hash): void {
     for (const voucher of this.data.vouchers) {
-      if (voucher.channelId === channelId && !voucher.claimed) {
+      if (voucher.channelId.toLowerCase() === channelId.toLowerCase() && !voucher.claimed) {
         voucher.claimed = true;
         voucher.claimedAt = Date.now();
         voucher.claimTxHash = txHash;

@@ -69,9 +69,9 @@ export class VoucherStorage {
 
   storeVoucher(voucher: StoredVoucher): void { this.data.vouchers.push(voucher); this.save(); }
 
-  getChannel(channelId: Hash): ChannelState | null { return this.data.channels[channelId] ?? null; }
+  getChannel(channelId: Hash): ChannelState | null { return this.data.channels[channelId.toLowerCase()] ?? null; }
 
-  updateChannel(channelId: Hash, state: ChannelState): void { this.data.channels[channelId] = state; this.save(); }
+  updateChannel(channelId: Hash, state: ChannelState): void { this.data.channels[channelId.toLowerCase()] = state; this.save(); }
 
   getUnclaimedVouchers(): StoredVoucher[] { return this.data.vouchers.filter(v => !v.claimed); }
 

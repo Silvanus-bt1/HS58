@@ -76,7 +76,7 @@ export class DrainService {
       }
       
       return {
-        channelId: parsed.channelId as Hash,
+        channelId: (parsed.channelId as string).toLowerCase() as Hash,
         amount: parsed.amount,
         nonce: parsed.nonce,
         signature: parsed.signature as Hex,
@@ -401,7 +401,8 @@ export class DrainService {
    * Returns the finalAmount (highest voucher or 0) and provider signature.
    */
   async signCloseAuthorization(channelId: Hash): Promise<{ finalAmount: bigint; signature: Hex }> {
-    const highest = this.storage.getHighestVoucherPerChannel().get(channelId);
+    const normalizedId = channelId.toLowerCase() as Hash;
+    const highest = this.storage.getHighestVoucherPerChannel().get(normalizedId);
     const finalAmount = highest ? highest.amount : 0n;
 
     const signature = await this.walletClient.signTypedData({
